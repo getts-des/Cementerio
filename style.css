@@ -209,9 +209,8 @@ input::placeholder { color: var(--text-dim); }
 /* ---- Cemetery map ---- */
 #map-wrapper {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: block;
+  width: 100%;
   padding: 12px;
   overflow: auto;
 }
@@ -220,7 +219,9 @@ input::placeholder { color: var(--text-dim); }
   position: relative;
   width: 100%;
   max-width: 960px;
+  margin: 0 auto;
   aspect-ratio: 16/9;
+  min-height: 320px;
   background:
     radial-gradient(ellipse 60% 30% at 50% 85%, rgba(15,26,15,0.9) 0%, transparent 70%),
     linear-gradient(180deg, #0c1a0c 0%, #0f1f0f 40%, #111e11 100%);
