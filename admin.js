@@ -42,9 +42,16 @@ async function createGame() {
   if (!code || code.length < 3) { showCreateErr(errEl, 'El código debe tener al menos 3 caracteres'); return; }
   if (!duration || duration < 1 || duration > 120) { showCreateErr(errEl, 'La duración debe estar entre 1 y 120 minutos'); return; }
 
-  // Verificar que el código no exista
+  // Si ya existe una sala con ese código, ofrecer reemplazarla (permite reusar códigos).
   const snap = await db.ref(`games/${code}`).once('value');
-  if (snap.exists()) { showCreateErr(errEl, 'Ese código ya existe. Elegí otro o reconectate.'); return; }
+  if (snap.exists()) {
+    const st = snap.child('config/status').val();
+    const msg = (st === 'finished' || !st)
+      ? 'Ya existe una sala con ese código (terminada). ¿La reemplazamos y empezamos de nuevo?'
+      : 'Ya existe una sala EN CURSO con ese código. ¿Reemplazarla? Se perderá la partida actual.';
+    if (!confirm(msg)) return;
+    await db.ref(`games/${code}`).remove();
+  }
 
   adminGameCode = code;
   adminDuration = duration;
@@ -238,6 +245,9 @@ function renderAdminMap() {
   const map = document.getElementById('admin-cemetery-map');
   if (!map) return;
 
+  renderBoard(map, ADMIN_TOMB_POSITIONS);
+  renderDecor(map);
+
   adminTombs.forEach((tomb, idx) => {
     if (!tomb) return;
     const pos = ADMIN_TOMB_POSITIONS[idx];
@@ -273,6 +283,64 @@ function renderAdminMap() {
     `;
     el.title = `Tumba ${idx+1}${isGolden?' ⭐':''}${tomb.ownerName?' — '+tomb.ownerName:''}${isFixed?' (FIJA)':''}`;
   });
+}
+
+// Dibuja los caminos que conectan cada tumba con sus vecinas (estilo tablero).
+function renderBoard(mapEl, positions) {
+  if (mapEl.querySelector('.board-svg')) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'board-svg');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('preserveAspectRatio', 'none');
+
+  const seen = new Set();
+  for (let i = 0; i < positions.length; i++) {
+    const dists = [];
+    for (let j = 0; j < positions.length; j++) {
+      if (i === j) continue;
+      const dx = positions[i][0] - positions[j][0];
+      const dy = positions[i][1] - positions[j][1];
+      dists.push([Math.hypot(dx, dy), j]);
+    }
+    dists.sort((a, b) => a[0] - b[0]);
+    for (let k = 0; k < 3 && k < dists.length; k++) {
+      if (dists[k][0] > 26) continue;
+      const j = dists[k][1];
+      const key = Math.min(i, j) + '-' + Math.max(i, j);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const a = positions[i], b = positions[j];
+      ['road', 'road-dash'].forEach(cls => {
+        const line = document.createElementNS(NS, 'line');
+        line.setAttribute('x1', a[0]); line.setAttribute('y1', a[1]);
+        line.setAttribute('x2', b[0]); line.setAttribute('y2', b[1]);
+        line.setAttribute('class', cls);
+        svg.appendChild(line);
+      });
+    }
+  }
+  mapEl.insertBefore(svg, mapEl.firstChild);
+}
+
+// Agrega niebla en movimiento, zombies caminando y props decorativos.
+function renderDecor(mapEl) {
+  if (mapEl.querySelector('.map-decor')) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'map-decor';
+  wrap.innerHTML = `
+    <div class="fog-layer fog1"></div>
+    <div class="fog-layer fog2"></div>
+    <div class="map-prop tree" style="left:1.5%; bottom:2%;">🌳</div>
+    <div class="map-prop tree" style="right:2%; bottom:3%;">🌲</div>
+    <div class="map-prop flower" style="left:48%; bottom:2%;">🥀</div>
+    <div class="map-prop flower" style="left:24%; bottom:4%;">⚰️</div>
+    <div class="map-bat" style="top:10%; left:26%;">🦇</div>
+    <div class="map-bat" style="top:16%; left:58%; animation-delay:-3s;">🦇</div>
+    <div class="map-zombie z1"><span>🧟</span></div>
+    <div class="map-zombie z2"><span>🧟‍♂️</span></div>
+  `;
+  mapEl.appendChild(wrap);
 }
 
 function hexToRgbaAdmin(hex, alpha) {
