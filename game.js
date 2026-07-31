@@ -157,30 +157,11 @@ let usedRiddleIndices = { medium: new Set(), hard: new Set() };
 
 window.addEventListener('load', () => {
   renderColorPicker([]);
-  const saved = localStorage.getItem('cementerio_session');
-  if (saved) {
-    const s = JSON.parse(saved);
-    gameCode = s.gameCode;
-    teamId   = s.teamId;
-    myTeam   = s.team;
-    reconnect();
-  }
+  // Siempre arrancar en la pantalla de inicio: cada vez que se entra al link
+  // se puede ingresar un equipo diferente (sin reconexión automática).
+  localStorage.removeItem('cementerio_session');
+  showScreen('screen-start');
 });
-
-function reconnect() {
-  const configRef = db.ref(`games/${gameCode}/config`);
-  configRef.once('value', snap => {
-    if (!snap.exists()) { localStorage.removeItem('cementerio_session'); showScreen('screen-start'); return; }
-    gameConfig = snap.val();
-    if (gameConfig.status === 'waiting') {
-      showWaiting();
-    } else if (gameConfig.status === 'active') {
-      showGame();
-    } else {
-      showEnd();
-    }
-  });
-}
 
 // ================================================================
 // PANTALLAS
@@ -293,7 +274,6 @@ async function joinGame() {
     myTeam = { name, color: selectedColor, score: 0, frozenUntil: 0, lastRobAt: 0, goldenCooldown: false, joinedAt: Date.now() };
 
     await db.ref(`games/${gameCode}/teams/${teamId}`).set(myTeam);
-    localStorage.setItem('cementerio_session', JSON.stringify({ gameCode, teamId, team: myTeam }));
     if (colorListener) { colorListener(); colorListener = null; }
     showWaiting();
 
