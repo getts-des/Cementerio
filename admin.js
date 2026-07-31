@@ -18,6 +18,7 @@ let adminTeams    = {};
 let adminTombs    = [];
 let adminConfig   = null;
 let adminTimerInt = null;
+let roomCleanupScheduled = false;  // evita programar el borrado de la sala dos veces
 
 // ================================================================
 // PANTALLAS
@@ -47,6 +48,7 @@ async function createGame() {
 
   adminGameCode = code;
   adminDuration = duration;
+  roomCleanupScheduled = false;  // nueva partida: habilitar borrado al finalizar
 
   // Crear las 35 tumbas con estado inicial
   const tombs = {};
@@ -94,6 +96,7 @@ async function rejoinGame() {
   adminGameCode = code;
   adminConfig = snap.val();
   adminDuration = adminConfig.duration || 30;
+  roomCleanupScheduled = false;  // partida reconectada: habilitar borrado al finalizar
   localStorage.setItem('cementerio_admin', JSON.stringify({ gameCode: code, duration: adminDuration }));
 
   if (adminConfig.status === 'waiting') {
@@ -333,6 +336,8 @@ function showAdminEnd() {
   showScreen('screen-admin-end');
   clearInterval(adminTimerInt);
 
+  const codeToClean = adminGameCode;  // capturar antes de que pueda cambiar
+
   db.ref(`games/${adminGameCode}/teams`).once('value', snap => {
     const teams = [];
     if (snap.exists()) snap.forEach(c => teams.push({ id: c.key, ...c.val() }));
@@ -358,7 +363,27 @@ function showAdminEnd() {
       `;
       rankEl.appendChild(div);
     });
+
+    // Programar el borrado de la sala. Se espera 30 segundos para que todos los
+    // equipos alcancen a ver el ranking final antes de que se elimine la partida.
+    if (!roomCleanupScheduled && codeToClean) {
+      roomCleanupScheduled = true;
+      const note = document.createElement('div');
+      note.style.cssText = 'margin-top:16px; font-size:0.8rem; color:var(--text-dim);';
+      note.textContent = 'La sala se cerrará automáticamente en unos segundos...';
+      rankEl.appendChild(note);
+      setTimeout(() => cleanupRoom(codeToClean), 30000);
+    }
   });
+}
+
+// Borra por completo la sala de Firebase una vez terminada la partida.
+function cleanupRoom(code) {
+  db.ref(`games/${code}`).off();      // quitar listeners para evitar callbacks con null
+  db.ref(`games/${code}`).remove()
+    .then(() => console.log(`Sala ${code} eliminada`))
+    .catch(e => console.error('Error al eliminar la sala', e));
+  localStorage.removeItem('cementerio_admin');
 }
 
 // ================================================================
