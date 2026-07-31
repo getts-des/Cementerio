@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🪦 Cementerio — Organizador</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Estilos extra para el panel admin */
+    #admin-map-wrap { flex:1; display:flex; flex-direction:column; align-items:center; padding:10px; overflow:auto; }
+    #admin-cemetery-map {
+      position:relative; width:100%; max-width:960px; aspect-ratio:16/9;
+      background: linear-gradient(180deg, #0c1a0c 0%, #0f1f0f 40%, #111e11 100%);
+      border-radius:16px; border:2px solid rgba(50,80,50,0.5); overflow:hidden;
+      box-shadow:0 0 60px rgba(0,0,0,0.8);
+    }
+    #admin-cemetery-map::before {
+      content:''; position:absolute; top:20px; right:30px;
+      width:70px; height:70px; border-radius:50%;
+      background:radial-gradient(circle at 40% 40%, #fffde7, #ffd54f);
+      box-shadow:0 0 30px 10px rgba(255,245,120,0.3);
+    }
+    .admin-tomb {
+      position:absolute; transform:translate(-50%,-50%);
+      width:clamp(34px,4.5vw,48px); height:clamp(46px,6vw,64px);
+      border-radius:50% 50% 4px 4px/30% 30% 4px 4px;
+      background:#2e2e3a; border:2px solid rgba(255,255,255,0.1);
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      font-size:clamp(12px,1.8vw,18px);
+      cursor:default;
+    }
+    .admin-tomb.golden { border-color:var(--gold); }
+    .admin-tomb.golden.free { box-shadow:0 0 10px 3px rgba(245,158,11,0.4); }
+    .admin-tomb.fixed { border-width:3px; border-color:rgba(255,255,255,0.6)!important; }
+    #admin-header {
+      background:rgba(8,11,18,0.95); border-bottom:1px solid var(--border);
+      padding:8px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+      position:sticky; top:0; z-index:100; backdrop-filter:blur(8px);
+    }
+    #admin-timer {
+      font-family:'Creepster',cursive; font-size:2rem; color:var(--gold);
+      text-shadow:0 0 10px rgba(245,158,11,0.5); min-width:90px; text-align:center;
+    }
+    #admin-timer.urgent { color:var(--red); animation:pulse 0.8s infinite; }
+    .stat-chip {
+      background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12);
+      border-radius:8px; padding:4px 12px; font-size:0.85rem;
+    }
+    .stat-chip strong { color:var(--purple-l); }
+  </style>
+</head>
+<body>
+
+<!-- ===== INICIO ADMIN ===== -->
+<div id="screen-admin-start" class="screen active">
+  <div style="text-align:center; max-width:480px; width:100%;">
+    <div style="font-size:3rem;">🧙</div>
+    <h1 class="title-horror" style="font-size:2.5rem;">Panel del Organizador</h1>
+    <div class="card" style="margin-top:24px;">
+      <div class="input-group">
+        <label>Código de Sala</label>
+        <input type="text" id="game-code-input" placeholder="Ej: CEMENTERIO42" style="text-transform:uppercase;" maxlength="20" />
+        <div class="hint">El código que vas a compartir con los equipos</div>
+      </div>
+      <div class="input-group">
+        <label>Duración del Juego (minutos)</label>
+        <input type="text" id="duration-input" value="30" placeholder="30" />
+      </div>
+      <div id="create-error" class="error-msg" style="display:none;"></div>
+      <button class="btn btn-primary btn-full mt-16" onclick="createGame()">⚰ Crear Partida</button>
+      <hr style="border-color:var(--border); margin:16px 0;" />
+      <p style="font-size:0.85rem; color:var(--text-dim); text-align:center;">¿Ya creaste una partida?</p>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <input type="text" id="rejoin-code-input" placeholder="Código de sala..." style="text-transform:uppercase; flex:1;" />
+        <button class="btn btn-ghost" onclick="rejoinGame()">Reconectar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOBBY ===== -->
+<div id="screen-admin-lobby" class="screen">
+  <div style="text-align:center; max-width:560px; width:100%;">
+    <div style="font-size:2.5rem;">⚰</div>
+    <h2 class="title-horror" style="font-size:2rem;">Sala de Espera</h2>
+    <p class="subtitle" style="margin-top:4px;">Compartí el código con los equipos</p>
+    <div style="margin:20px 0; font-size:2rem; font-family:'Creepster',cursive; color:var(--gold); letter-spacing:4px;" id="lobby-code-display"></div>
+    <div id="lobby-teams" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; min-height:40px; margin-bottom:16px;"></div>
+    <div id="lobby-status" style="font-size:0.85rem; color:var(--text-dim); margin-bottom:20px;">Esperando equipos...</div>
+    <button class="btn btn-gold btn-lg" id="btn-start" onclick="startGame()">⚡ ¡Empezar el Juego!</button>
+    <div style="margin-top:10px;">
+      <button class="btn btn-ghost btn-sm" onclick="showScreen('screen-admin-start')">← Volver</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VISTA GENERAL DEL JUEGO ===== -->
+<div id="screen-admin-game" class="screen" style="padding:0; min-height:100vh; flex-direction:column;">
+
+  <!-- Header admin -->
+  <div id="admin-header">
+    <div style="font-family:'Creepster',cursive; font-size:1.4rem; color:var(--purple-l);">🪦 Cementerio</div>
+    <div id="admin-timer">--:--</div>
+    <div class="stat-chip">Código: <strong id="admin-code-badge"></strong></div>
+    <div class="stat-chip">Equipos: <strong id="stat-teams">0</strong></div>
+    <div class="stat-chip">Tumbas libres: <strong id="stat-free">35</strong></div>
+    <div class="stat-chip">Tumbas fijas: <strong id="stat-fixed">0</strong></div>
+    <button class="btn btn-danger btn-sm" onclick="endGameManual()">⏹ Terminar</button>
+  </div>
+
+  <!-- Mapa -->
+  <div id="admin-map-wrap">
+    <div id="admin-cemetery-map"></div>
+  </div>
+
+  <!-- Marcador admin -->
+  <div id="admin-scoreboard"></div>
+</div>
+
+<!-- ===== PANTALLA FIN (admin) ===== -->
+<div id="screen-admin-end" class="screen">
+  <div style="font-size:3rem;">🏆</div>
+  <h1 class="title-horror">¡Juego Terminado!</h1>
+  <p id="admin-winner-msg" class="subtitle" style="margin-top:8px; font-size:1.1rem;"></p>
+  <div id="admin-final-rankings" style="margin-top:24px; display:flex; flex-direction:column; gap:10px; max-width:420px; width:100%;"></div>
+  <button class="btn btn-primary mt-24" onclick="showScreen('screen-admin-start')">Crear nueva partida</button>
+</div>
+
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script src="firebase.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
