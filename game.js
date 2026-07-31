@@ -157,11 +157,50 @@ let usedRiddleIndices = { medium: new Set(), hard: new Set() };
 
 window.addEventListener('load', () => {
   renderColorPicker([]);
-  // Siempre arrancar en la pantalla de inicio: cada vez que se entra al link
-  // se puede ingresar un equipo diferente (sin reconexión automática).
-  localStorage.removeItem('cementerio_session');
+  localStorage.removeItem('cementerio_session');  // limpiar formato viejo (compartido entre pestañas)
+
+  // Usamos sessionStorage (por pestaña, se borra al cerrarla):
+  //  - Recargar la MISMA pestaña → reconecta al equipo (no se pierde el progreso).
+  //  - Abrir el link en una pestaña NUEVA → sin sesión → se puede ingresar otro equipo.
+  const saved = sessionStorage.getItem('cementerio_session');
+  if (saved) {
+    try {
+      const s = JSON.parse(saved);
+      gameCode = s.gameCode;
+      teamId   = s.teamId;
+      myTeam   = s.team;
+      reconnect();
+      return;
+    } catch(e) { sessionStorage.removeItem('cementerio_session'); }
+  }
   showScreen('screen-start');
 });
+
+async function reconnect() {
+  try {
+    const cfgSnap  = await db.ref(`games/${gameCode}/config`).once('value');
+    const teamSnap = await db.ref(`games/${gameCode}/teams/${teamId}`).once('value');
+    // Si la sala ya no existe o el equipo fue eliminado, arrancar de cero.
+    if (!cfgSnap.exists() || !teamSnap.exists()) {
+      sessionStorage.removeItem('cementerio_session');
+      showScreen('screen-start');
+      return;
+    }
+    gameConfig = cfgSnap.val();
+    myTeam     = teamSnap.val();
+    if (gameConfig.status === 'waiting') {
+      showWaiting();
+    } else if (gameConfig.status === 'active') {
+      showGame();
+    } else {
+      sessionStorage.removeItem('cementerio_session');
+      showScreen('screen-start');
+    }
+  } catch(e) {
+    console.error(e);
+    showScreen('screen-start');
+  }
+}
 
 // ================================================================
 // PANTALLAS
@@ -274,6 +313,7 @@ async function joinGame() {
     myTeam = { name, color: selectedColor, score: 0, frozenUntil: 0, lastRobAt: 0, goldenCooldown: false, joinedAt: Date.now() };
 
     await db.ref(`games/${gameCode}/teams/${teamId}`).set(myTeam);
+    sessionStorage.setItem('cementerio_session', JSON.stringify({ gameCode, teamId, team: myTeam }));
     if (colorListener) { colorListener(); colorListener = null; }
     showWaiting();
 
