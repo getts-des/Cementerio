@@ -10,9 +10,19 @@
     #admin-map-wrap { flex:1; display:block; width:100%; padding:10px; overflow:auto; }
     #admin-cemetery-map {
       position:relative; width:100%; max-width:960px; margin:0 auto; aspect-ratio:16/9; min-height:320px;
-      background: linear-gradient(180deg, #0c1a0c 0%, #0f1f0f 40%, #111e11 100%);
-      border-radius:16px; border:2px solid rgba(50,80,50,0.5); overflow:hidden;
-      box-shadow:0 0 60px rgba(0,0,0,0.8);
+      background:
+        radial-gradient(circle at 18% 28%, rgba(34,56,28,0.55) 0%, transparent 22%),
+        radial-gradient(circle at 72% 62%, rgba(30,50,24,0.55) 0%, transparent 26%),
+        radial-gradient(ellipse 70% 45% at 50% 92%, rgba(8,16,8,0.9) 0%, transparent 72%),
+        linear-gradient(180deg, #0e1c0d 0%, #13260f 45%, #0b1809 100%);
+      border-radius:16px; border:2px solid rgba(60,90,55,0.55); overflow:hidden;
+      box-shadow:0 0 60px rgba(0,0,0,0.8), inset 0 0 80px rgba(0,0,0,0.6);
+    }
+    /* La luna del admin usa el mismo ::before del CSS compartido no aplica aquí; la agregamos: */
+    #admin-cemetery-map::before {
+      content:''; position:absolute; top:20px; right:30px; width:70px; height:70px;
+      border-radius:50%; background:radial-gradient(circle at 40% 40%, #fffde7, #ffd54f);
+      box-shadow:0 0 30px 10px rgba(255,245,120,0.3), 0 0 80px 20px rgba(255,245,120,0.1); z-index:1;
     }
     #admin-cemetery-map::before {
       content:''; position:absolute; top:20px; right:30px;
